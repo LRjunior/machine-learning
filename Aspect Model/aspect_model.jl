@@ -92,8 +92,8 @@ begin
 	fournews_dictionary = readdlm("4news_dictionary.txt")
 	fournews_matrix = sparse(transpose(readdlm("4news.txt", ' ', Int, '\n')))
 	top_k = 10
-	C = 4
-	loglikelihood_list, Pzd, Pwz, Pdz, Pzw = @time asymmetric_aspect_model(fournews_matrix, C, maxiter=100)
+	Z = 4
+	loglikelihood_list, Pzd, Pwz, Pdz, Pzw = @time asymmetric_aspect_model(fournews_matrix, Z, maxiter=100)
 
 	plot_loglikelihood = plot(loglikelihood_list, xlabel="iteration", ylabel="log-likelihood", title="Log-likelihood")
 	savefig(plot_loglikelihood, "log_likelihood.pdf")
