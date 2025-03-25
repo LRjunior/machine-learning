@@ -5,34 +5,41 @@ using DelimitedFiles
 using Plots
 #using PyPlot
 
-function asymmetric_aspect_model(M, Z; maxiter=20)
+function normalize!(A::Matrix, B::Matrix)
+	#normalize matrices
+	s = sum(A, dims=2)
+	B = A ./ s
+	A = zeros(size(A))
+	@assert all(isapprox(v, 1.0, atol=1e-4) for v in vec(sum(B, dims=2))) "Normalization failed"
+	return A, B
+end
+
+function write_results(matrix::Matrix, filename::String)
+	open(filename, "w") do io
+		writedlm(io, matrix)
+	end
+end
+
+function asymmetric_aspect_model(M, Z::Int; maxiter::Int=20)
 	D, W = size(M)
 	
 	@assert all(>=(2), count(>=(1), M, dims=1)) "Document-Word matrix is defective"
 
 	#initialize matrices
 	Pzd = rand(Z,D)
-	Pzd_new = zeros(Z,D)
 	Pwz = rand(W,Z)
-	Pwz_new = zeros(W,Z)
-
 	Pdz = rand(D,Z)
-	Pdz_new = zeros(D,Z)
 	Pzw = rand(Z,W)
+	Pzd_new = zeros(Z,D)
+	Pwz_new = zeros(W,Z)
+	Pdz_new = zeros(D,Z)
 	Pzw_new = zeros(Z,W)
 	
 	#normalize matrices
-	s = sum(Pzd, dims=2)
-	Pzd = Pzd ./ s
-	
-	s = sum(Pwz, dims=2)
-	Pwz = Pwz ./ s
-
-	s = sum(Pdz, dims=2)
-	Pdz = Pdz ./ s
-
-	s = sum(Pzw, dims=2)
-	Pzw = Pzw ./ s
+	Pzd,Pzd_new = normalize!(Pzd,Pzd_new)
+	Pwz,Pwz_new = normalize!(Pwz,Pwz_new)
+	Pdz,Pdz_new = normalize!(Pdz,Pdz_new)
+	Pzw,Pzw_new = normalize!(Pzw,Pzw_new)
 	
 	#perform iterative EM algorithm
 	log_likelihood_list = []
@@ -52,25 +59,10 @@ function asymmetric_aspect_model(M, Z; maxiter=20)
 			end
 		end
 		
-		s = sum(Pzd_new, dims=2)
-		Pzd = Pzd_new ./ s
-		Pzd_new = zeros(Z,D)
-		@assert all(isapprox(v, 1.0, atol=1e-4) for v in vec(sum(Pzd, dims=2))) "Normalization of Pzd failed"
-		
-		s = sum(Pwz_new, dims=2)
-		Pwz = Pwz_new ./ s
-		Pwz_new = zeros(W,Z)
-		@assert all(isapprox(v, 1.0, atol=1e-4) for v in vec(sum(Pwz, dims=2))) "Normalization of Pwz failed"
-		
-		s = sum(Pdz_new, dims=2)
-		Pdz = Pdz_new ./ s
-		Pdz_new = zeros(D,Z)
-		@assert all(isapprox(v, 1.0, atol=1e-4) for v in vec(sum(Pdz, dims=2))) "Normalization of Pdz failed"
-		
-		s = sum(Pzw_new, dims=2)
-		Pzw = Pzw_new ./ s
-		Pzw_new = zeros(Z,W)
-		@assert all(isapprox(v, 1.0, atol=1e-4) for v in vec(sum(Pzw, dims=2))) "Normalization of Pzw failed"
+		Pzd_new,Pzd = normalize!(Pzd_new,Pzd)
+		Pwz_new,Pwz = normalize!(Pwz_new,Pwz)
+		Pdz_new,Pdz = normalize!(Pdz_new,Pdz)
+		Pzw_new,Pzw = normalize!(Pzw_new,Pzw)
 		
 		loglikelihood = 0
 		for (d,w,n) in zip(findnz(M)...)
@@ -98,30 +90,19 @@ begin
 	plot_loglikelihood = plot(loglikelihood_list, xlabel="iteration", ylabel="log-likelihood", title="Log-likelihood")
 	savefig(plot_loglikelihood, "log_likelihood.pdf")
 
-	plot_Pzd = heatmap(Pzd, c=:Greys, xlabel="d", ylabel="z", title="P(z|d)")
-	plot_Pwz = heatmap(Pwz, c=:Greys, xlabel="z", ylabel="w", title="P(w|z)")
-	plot_Pdz = heatmap(Pdz, c=:Greys, xlabel="z", ylabel="d", title="P(d|z)")
-	plot_Pzw = heatmap(Pzw, c=:Greys, xlabel="w", ylabel="z", title="P(z|w)")
+	plot_Pzd = heatmap(Pzd, c=:Greys, xlabel="d", ylabel="z", title="P(z|d)", clims=(0.0,1.0))
+	plot_Pwz = heatmap(Pwz, c=:Greys, xlabel="z", ylabel="w", title="P(w|z)", clims=(0.0,1.0))
+	plot_Pdz = heatmap(Pdz, c=:Greys, xlabel="z", ylabel="d", title="P(d|z)", clims=(0.0,1.0))
+	plot_Pzw = heatmap(Pzw, c=:Greys, xlabel="w", ylabel="z", title="P(z|w)", clims=(0.0,1.0))
 	
 	plot_matrices = plot(plot_Pzd, plot_Pwz, plot_Pdz, plot_Pzw, layout=(1,4))
 	savefig(plot_matrices, "Pzd_Pwz_Pdz_Pzw.pdf")
 
-	open("Pzd.txt", "w") do io
-		writedlm(io, Pzd)
-	end
-
-	open("Pwz.txt", "w") do io
-		writedlm(io, Pwz)
-	end
-
-	open("Pdz.txt", "w") do io
-		writedlm(io, Pdz)
-	end
-
-	open("Pzw.txt", "w") do io
-		writedlm(io, Pzw)
-	end
-
+	write_results(Pzd, "Pzd.txt")
+	write_results(Pwz, "Pwz.txt")
+	write_results(Pdz, "Pdz.txt")
+	write_results(Pzw, "Pzw.txt")
+	
 	for z in 1:Z
 		psp = partialsortperm(Pzw[z,:], 1:top_k, rev=true)
 		top_words = collect(zip(Pzw[z,psp], fournews_dictionary[psp,2]))
